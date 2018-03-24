@@ -22,7 +22,7 @@ const updatedCity = updateTemperature(KtoF, city);
 const totalCostReducer = (acc, city) => {
   const { cost = 0 } = city;
   return acc + cost;
-}
+};
 
 const totalCost = R.reduce(totalCostReducer, 0, cities);
 const cityCount = R.length(cities);
@@ -34,33 +34,34 @@ const groupByPropReducer = (acc, city) => {
     cost: R.append(city.cost, cost),
     internetSpeed: R.append(city.internetSpeed, internetSpeed),
   });
-}
+};
 
 const groupedByProp = R.reduce(groupByPropReducer, {}, cities);
 
 // console.log(groupedByProp);
 
-const calcScore = city => {
+const calcScore = R.curry((options, city) => {
   const { cost = 0, internetSpeed = 0 } = city;
+  const { costPercent = 100, internetPercent = 20 } = options;
+
   const costPercentile = percentile(groupedByProp.cost, cost);
-  const internetSpeedPercentile = percentile(
-    groupedByProp.internetSpeed,
-    internetSpeed,
-  );
-  const score =
-    100 * (1.0 - costPercentile) +
-    20 * internetSpeedPercentile; 
+  const internetSpeedPercentile = percentile(groupedByProp.internetSpeed, internetSpeed);
+  const score = costPercent * (1.0 - costPercentile) + internetSpeed * internetSpeedPercentile;
   return R.merge(city, { score });
-}
+});
 
 // const scoredCities = R.map(calcScore, updatedCities);
 
 // console.log(scoredCities);
 
-const filterByWeather = city => {
+const filterByWeather = R.curry((options, city) => {
   const { temp = 0, humidity = 0 } = city;
-  return temp > 68 && temp < 85 && humidity > 30 && humidity < 70;
-}
+  const { tempMin, tempMax, humidityMin, humidityMax } = options;
+
+  return (
+    temp > options.tempMin && temp < options.tempMax && humidity > options.humidityMin && humidity < options.humidityMax
+  );
+});
 
 // const filteredCities = R.filter(filterByWeather, scoredCities);
 
@@ -82,24 +83,31 @@ const cityToArray = city => {
   const { name, country, score, cost, temp, internetSpeed } = city;
   return [name, country, score, cost, temp, internetSpeed];
 };
-const interestingProps = [
-  'Name',
-  'Country',
-  'Score',
-  'Cost',
-  'Temp',
-  'Internet',
-];
+const interestingProps = ['Name', 'Country', 'Score', 'Cost', 'Temp', 'Internet'];
 
 const topCities = R.pipe(
   R.map(updateTemperature(KtoF)),
-  R.filter(filterByWeather),
-  R.map(calcScore),
+  R.filter(
+    filterByWeather({
+      // temp: [66, 85],
+      // humidity: [30, 80],
+      tempMin: 66,
+      tempMax: 85,
+      humidityMin: 30,
+      humidityMax: 70,
+    })
+  ),
+  R.map(
+    calcScore({
+      costPercent: 20,
+      internetPercent: 100,
+    })
+  ),
   R.sortWith([R.descend(city => city.score)]),
   R.take(10),
   R.map(cityToArray),
   R.prepend(interestingProps),
-  table,
+  table
 )(cities);
 
 console.log(topCities);
